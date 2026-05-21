@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WMS Executive - Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        /* Animación personalizada para el botón de actualizar */
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .anim-spin {
+            animation: spin 1s linear infinite;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 font-sans text-slate-800">
+
+    <div id="loading-screen" class="fixed inset-0 bg-slate-900/80 flex flex-col items-center justify-center z-[60] text-white font-bold hidden">
+        <div class="animate-spin rounded-full h-12 w-12 border-4 border-t-blue-500 border-slate-700 mb-4"></div>
+        <p id="loading-text">Sincronizando con la nube...</p>
+    </div>
+
+    <div id="pantalla-login" class="fixed inset-0 bg-slate-900 flex items-center justify-center z-50 p-4">
+        <div class="bg-white p-8 rounded-3xl shadow-2xl max-w-md w-full border border-slate-200">
+            <div class="flex flex-col items-center gap-2 mb-6">
+                <span class="material-icons text-blue-500 text-4xl">lock</span>
+                <h2 class="text-2xl font-black text-slate-800 tracking-tight text-center">Acceso DS MEX2</h2>
+                <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">WMS Control de Inventarios</p>
+            </div>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Usuario</label>
+                    <input type="text" id="login-user" class="w-full p-4 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-blue-500 outline-none font-bold text-slate-700" placeholder="Ingrese su usuario">
+                </div>
+                <div>
+                    <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Contraseña</label>
+                    <input type="password" id="login-pass" class="w-full p-4 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-blue-500 outline-none font-mono text-slate-700" placeholder="••••••••">
+                </div>
+                <div id="login-error" class="text-red-500 text-xs font-bold hidden text-center">
+                    ⚠️ Usuario o contraseña incorrectos
+                </div>
+                <button onclick="autenticar()" class="w-full p-5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-lg shadow-lg transition-all uppercase tracking-tighter">
+                    Ingresar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="interfaz-wms" class="hidden">
+        <header class="bg-slate-900 text-white p-4 shadow-2xl">
+            <div class="container mx-auto flex justify-between items-center">
+                <div class="flex items-center gap-4 min-w-0">
+                    <div class="flex-shrink-0 w-8 h-8 flex items-center justify-center">
+                        <svg viewBox="0 0 24 24" class="w-full h-full text-[#FFC220]" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                            <rect x="11" y="1" width="2" height="5" rx="1"/>
+                            <rect x="11" y="18" width="2" height="5" rx="1"/>
+                            <rect x="1" y="11" width="5" height="2" rx="1"/>
+                            <rect x="18" y="11" width="5" height="2" rx="1"/>
+                            <g transform="rotate(45 12 12)">
+                                <rect x="11" y="1" width="2" height="5" rx="1"/>
+                                <rect x="11" y="18" width="2" height="5" rx="1"/>
+                                <rect x="1" y="11" width="5" height="2" rx="1"/>
+                                <rect x="18" y="11" width="5" height="2" rx="1"/>
+                            </g>
+                        </svg>
+                    </div>
+                    <h1 class="text-xl font-black tracking-tighter truncate">
+                        DS MEX2 | <span class="text-blue-400">INVENTARIO SAME DAY</span>
+                    </h1>
+                </div>
+                
+                <div class="flex items-center gap-2 md:gap-4 flex-shrink-0">
+                    <button onclick="cargarDatosDesdeNube()" title="Actualizar inventario central" class="bg-slate-800 p-2 rounded-xl border border-slate-700 hover:bg-slate-700 text-blue-400 hover:text-blue-300 transition-all flex items-center justify-center">
+                        <span id="sync-icon" class="material-icons text-sm md:text-base">sync</span>
+                    </button>
+
+                    <div class="bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700 flex items-center gap-2">
+                        <span class="material-icons text-emerald-400 text-sm">account_circle</span>
+                        <span id="user-display" class="font-bold text-xs text-slate-200 font-mono"></span>
+                    </div>
+                    
+                    <button onclick="cerrarSesion()" class="text-slate-400 hover:text-red-400 transition-all flex items-center ml-1">
+                        <span class="material-icons text-sm">power_settings_new</span>
+                    </button>
+                    <div id="reloj" class="font-mono text-xs opacity-60 hidden md:block"></div>
+                </div>
+            </div>
+        </header>
+
+        <main class="container mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <div class="lg:col-span-4 space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-xl border border-slate-200">
+                    <h2 class="text-sm font-black text-slate-400 uppercase mb-6 tracking-widest text-center">Movimiento a elegir</h2>
+                    
+                    <div class="grid grid-cols-3 gap-2 mb-6">
+                        <button onclick="setModo('ENTRADA')" id="btn-ent" class="modo-btn p-3 rounded-xl border-2 border-green-500 bg-green-50 text-green-700 font-bold flex flex-col items-center gap-1 transition-all">
+                            <span class="material-icons text-sm">login</span><span class="text-[10px]">ENTRADA</span>
+                        </button>
+                        <button onclick="setModo('SALIDA')" id="btn-sal" class="modo-btn p-3 rounded-xl border-2 border-slate-200 text-slate-400 font-bold flex flex-col items-center gap-1 transition-all">
+                            <span class="material-icons text-sm">logout</span><span class="text-[10px]">SALIDA</span>
+                        </button>
+                        <button onclick="setModo('ASIGNAR')" id="btn-asig" class="modo-btn p-3 rounded-xl border-2 border-slate-200 text-slate-400 font-bold flex flex-col items-center gap-1 transition-all">
+                            <span class="material-icons text-sm">assignment</span><span class="text-[10px]">ASIGNAR</span>
+                        </button>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div id="campo-pedido" class="hidden">
+                            <label id="label-guia" class="text-[10px] font-bold uppercase text-indigo-600">GUÍA</label>
+                            <input type="text" id="pedido-input" class="w-full p-3 border-2 rounded-xl outline-none font-bold transition-colors" placeholder="Escriba el ID de la Guía">
+                        </div>
+
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Escaneo de UPC</label>
+                            <input type="text" id="upc-input" class="w-full p-4 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-blue-500 outline-none text-xl font-mono" placeholder="Esperando escaneo...">
+                        </div>
+
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Ubicación Operación</label>
+                            <select id="ubic-input" class="w-full p-4 bg-slate-50 border-2 border-slate-200 rounded-xl outline-none font-bold text-slate-700">
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Cantidad</label>
+                            <input type="number" id="cant-input" value="1" min="1" class="w-full p-4 bg-slate-50 border-2 border-slate-200 rounded-xl font-bold">
+                        </div>
+
+                        <button onclick="ejecutarOperacion()" id="btn-accion" class="w-full p-5 bg-green-600 hover:bg-green-700 text-white rounded-2xl font-black text-lg shadow-lg transition-all uppercase tracking-tighter">
+                            Confirmar Entrada
+                        </button>
+                    </div>
+                </div>
+                
+                <button onclick="exportarCSV()" class="w-full p-3 text-[10px] font-bold text-slate-400 border-2 border-dashed border-slate-300 rounded-xl hover:bg-white transition-all">
+                    DESCARGAR RESPALDO LOCAL (CSV)
+                </button>
+            </div>
+
+            <div class="lg:col-span-8 space-y-6">
+                <div class="bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200">
+                    <div class="p-5 bg-slate-50 border-b flex justify-between items-center">
+                        <h3 class="font-black text-xs text-slate-500 uppercase tracking-widest">Existencias en Rack</h3>
+                        <span id="badge-total" class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-[10px] font-bold">0 SKUs</span>
+                    </div>
+                    <div class="overflow-x-auto max-h-60">
+                        <table class="w-full text-left">
+                            <thead class="text-[10px] font-black text-slate-400 bg-white sticky top-0 border-b">
+                                <tr>
+                                    <th class="p-4">UPC / PRODUCTO</th>
+                                    <th class="p-4">UBICACIÓN</th>
+                                    <th class="p-4">UNIDADES</th>
+                                    <th class="p-4 text-right">ESTADO</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabla-stock" class="divide-y divide-slate-50"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="panel-asignaciones" class="bg-indigo-900 rounded-3xl shadow-xl overflow-hidden text-white border-4 border-indigo-200">
+                    <div class="p-5 border-b border-indigo-800">
+                        <h3 class="font-black text-xs uppercase tracking-widest flex items-center gap-2">
+                            <span class="material-icons text-amber-400">local_shipping</span> Estatus Guías
+                        </h3>
+                    </div>
+                    <div class="overflow-x-auto max-h-60">
+                        <table class="w-full text-left text-sm">
+                            <thead class="text-[10px] font-black text-indigo-300 uppercase border-b border-indigo-800">
+                                <tr>
+                                    <th class="p-4">GUÍA ID</th>
+                                    <th class="p-4">UPC ASIGNADO</th>
+                                    <th class="p-4 text-right">UNIDADES</th>
+                                    <th class="p-4 text-right">ESTATUS</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabla-pedidos" class="divide-y divide-indigo-800"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const CLOUD_API_URL = "https://script.google.com/macros/s/AKfycbwXR0YKtp-xZNT5I87FrbM4IEjPKUyPjZC6SE4H1BDwhelleBGnO4ZFnBf9CGKedgrf/exec";
+
+        const baseUsuarios = {
+            "m0t0eyp": "Osma1171210",
+            "a0h0f37": "Antonio123.",
+            "a0v04w9": "Aurora123.",
+            "j0d0gex": "Josue123."
+        };
+
+        let logs = [];
+        let modoActual = 'ENTRADA';
+        let usuarioActivo = "";
+
+        function mostrarCarga(texto) {
+            document.getElementById('loading-text').innerText = texto;
+            document.getElementById('loading-screen').classList.remove('hidden');
+            // Activamos rotación en el icono de la cabecera si está visible
+            const syncIcon = document.getElementById('sync-icon');
+            if(syncIcon) syncIcon.classList.add('anim-spin');
+        }
+        function ocultarCarga() {
+            document.getElementById('loading-screen').classList.add('hidden');
+            // Desactivamos rotación en el icono de la cabecera
+            const syncIcon = document.getElementById('sync-icon');
+            if(syncIcon) syncIcon.classList.remove('anim-spin');
+        }
+
+        async function cargarDatosDesdeNube() {
+            if(CLOUD_API_URL.includes("REMPLAZAR_CON_URL")) return;
+            mostrarCarga("Sincronizando Inventario Central...");
+            
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => {
+                controller.abort();
+                alert("⚠️ TIEMPO DE ESPERA AGOTADO: No se pudo conectar con Google Sheets. Verifique sus permisos de acceso.");
+                ocultarCarga();
+            }, 5000);
+
+            try {
+                const response = await fetch(CLOUD_API_URL, {
+                    method: 'POST',
+                    mode: 'cors',
+                    signal: controller.signal,
+                    body: JSON.stringify({ action: "read" })
+                });
+                clearTimeout(timeoutId);
+                logs = await response.json();
+                actualizarUI();
+            } catch (err) {
+                console.error("Error al leer de la nube:", err);
+                clearTimeout(timeoutId);
+            } finally {
+                ocultarCarga();
+            }
+        }
+
+        async function guardarLoteEnNube(listaMovimientos) {
+            if(CLOUD_API_URL.includes("REMPLAZAR_CON_URL")) {
+                listaMovimientos.forEach(m => logs.unshift(m));
+                actualizarUI();
+                return;
+            }
+            mostrarCarga("Sincronizando movimientos con la nube...");
+            try {
+                await fetch(CLOUD_API_URL, {
+                    method: 'POST',
+                    mode: 'cors',
+                    body: JSON.stringify({
+                        action: "write",
+                        movimientos: listaMovimientos
+                    })
+                });
+                await cargarDatosDesdeNube();
+            } catch(err) {
+                alert("Error de conexión. Guardado en caché local temporal.");
+                listaMovimientos.forEach(m => logs.unshift(m));
+                actualizarUI();
+                ocultarCarga();
+            }
+        }
+
+        function inicializarUbicaciones() {
+            const select = document.getElementById('ubic-input');
+            let opcionesHTML = '';
+            for (let i = 1; i <= 22; i++) opcionesHTML += `<option value="P5-${i}">P5-${i}</option>`;
+            for (let i = 1; i <= 12; i++) opcionesHTML += `<option value="P6-${i}">P6-${i}</option>`;
+            opcionesHTML += '<option value="ZONA-PICKING">ZONA-PICKING</option>';
+            select.innerHTML = opcionesHTML;
+        }
+
+        function autenticar() {
+            const userIn = document.getElementById('login-user').value.trim();
+            const passIn = document.getElementById('login-pass').value;
+            const errorMsg = document.getElementById('login-error');
+
+            if (baseUsuarios[userIn] && baseUsuarios[userIn] === passIn) {
+                usuarioActivo = userIn;
+                errorMsg.classList.add('hidden');
+                document.getElementById('pantalla-login').classList.add('hidden');
+                document.getElementById('interfaz-wms').classList.remove('hidden');
+                document.getElementById('user-display').innerText = usuarioActivo.toUpperCase();
+                document.getElementById('upc-input').focus();
+                cargarDatosDesdeNube();
+            } else {
+                errorMsg.classList.remove('hidden');
+                document.getElementById('login-pass').value = "";
+            }
+        }
+
+        function cerrarSesion() {
+            usuarioActivo = "";
+            document.getElementById('login-user').value = "";
+            document.getElementById('login-pass').value = "";
+            document.getElementById('interfaz-wms').classList.add('hidden');
+            document.getElementById('pantalla-login').classList.remove('hidden');
+        }
+
+        const configModos = {
+            'ENTRADA': {
+                btnId: 'btn-ent',
+                btnActivoClass: ['border-green-500', 'bg-green-50', 'text-green-700'],
+                btnAccionClass: ['w-full', 'p-5', 'bg-green-600', 'hover:bg-green-700', 'text-white', 'rounded-2xl', 'font-black', 'text-lg', 'shadow-lg', 'transition-all', 'uppercase', 'tracking-tighter'],
+                text: 'Confirmar Entrada', showGuia: false
+            },
+            'SALIDA': {
+                btnId: 'btn-sal',
+                btnActivoClass: ['border-red-500', 'bg-red-50', 'text-red-700'],
+                btnAccionClass: ['w-full', 'p-5', 'bg-red-600', 'hover:bg-red-700', 'text-white', 'rounded-2xl', 'font-black', 'text-lg', 'shadow-lg', 'transition-all', 'uppercase', 'tracking-tighter'],
+                text: 'Confirmar Salida', showGuia: true, theme: 'red'
+            },
+            'ASIGNAR': {
+                btnId: 'btn-asig',
+                btnActivoClass: ['border-indigo-500', 'bg-indigo-50', 'text-indigo-700'],
+                btnAccionClass: ['w-full', 'p-5', 'bg-indigo-600', 'hover:bg-indigo-700', 'text-white', 'rounded-2xl', 'font-black', 'text-lg', 'shadow-lg', 'transition-all', 'uppercase', 'tracking-tighter'],
+                text: 'Vincular a Guía', showGuia: true, theme: 'indigo'
+            }
+        };
+
+        function setModo(modo) {
+            modoActual = modo;
+            const cfg = configModos[modo];
+
+            document.querySelectorAll('.modo-btn').forEach(btn => {
+                btn.className = "modo-btn p-3 rounded-xl border-2 border-slate-200 text-slate-400 font-bold flex flex-col items-center gap-1 transition-all";
+            });
+
+            const btnTarget = document.getElementById(cfg.btnId);
+            cfg.btnActivoClass.forEach(clase => btnTarget.classList.add(clase));
+            btnTarget.classList.remove('border-slate-200', 'text-slate-400');
+
+            const btnAccion = document.getElementById('btn-accion');
+            btnAccion.innerText = cfg.text;
+            btnAccion.className = cfg.btnAccionClass.join(' ');
+            
+            const campoPedido = document.getElementById('campo-pedido');
+            const labelGuia = document.getElementById('label-guia');
+            const inputGuia = document.getElementById('pedido-input');
+            const selectUbic = document.getElementById('ubic-input');
+
+            if (cfg.showGuia) {
+                campoPedido.classList.remove('hidden');
+                if (cfg.theme === 'red') {
+                    labelGuia.className = "text-[10px] font-bold uppercase text-red-600";
+                    inputGuia.className = "w-full p-3 bg-red-50 border-2 border-red-200 rounded-xl focus:border-red-500 outline-none font-bold";
+                    selectUbic.value = "ZONA-PICKING";
+                } else {
+                    labelGuia.className = "text-[10px] font-bold uppercase text-indigo-600";
+                    inputGuia.className = "w-full p-3 bg-indigo-50 border-2 border-indigo-200 rounded-xl focus:border-indigo-500 outline-none font-bold";
+                }
+            } else {
+                campoPedido.classList.add('hidden');
+            }
+
+            document.getElementById('upc-input').focus();
+        }
+
+        function calcularStock(upc, ubic) {
+            return logs
+                .filter(l => l.upc === upc && l.ubic === ubic)
+                .reduce((acc, l) => {
+                    if (l.tipo === 'ENTRADA') return acc + l.cant;
+                    if (l.tipo === 'SALIDA') return acc - l.cant;
+                    return acc;
+                }, 0);
+        }
+
+        function buscarUbicacionConStock(upc) {
+            const stockMap = {};
+            logs.forEach(l => {
+                const key = l.ubic;
+                if (l.upc === upc) {
+                    if (l.tipo === 'ENTRADA') stockMap[key] = (stockMap[key] || 0) + l.cant;
+                    if (l.tipo === 'SALIDA') stockMap[key] = (stockMap[key] || 0) - l.cant;
+                }
+            });
+            for (const [ubicacion, saldo] of Object.entries(stockMap)) {
+                if (saldo > 0 && ubicacion !== 'ZONA-PICKING') {
+                    return ubicacion;
+                }
+            }
+            return null;
+        }
+
+        async function ejecutarOperacion() {
+            const upc = document.getElementById('upc-input').value.trim();
+            let ubic = document.getElementById('ubic-input').value;
+            const cant = parseInt(document.getElementById('cant-input').value);
+            const pedido = document.getElementById('pedido-input').value.trim();
+
+            if (!upc || isNaN(cant) || cant <= 0) return;
+            
+            if ((modoActual === 'ASIGNAR' || modoActual === 'SALIDA') && !pedido) {
+                return alert("Por favor, ingrese el ID de la Guía antes de continuar.");
+            }
+
+            if (modoActual === 'ASIGNAR') {
+                const ubicacionDetectada = buscarUbicacionConStock(upc);
+                if (ubicacionDetectada) {
+                    ubic = ubicacionDetectada;
+                }
+            }
+
+            if (modoActual === 'SALIDA') {
+                const stockInPicking = calcularStock(upc, 'ZONA-PICKING');
+                if (stockInPicking >= cant) {
+                    ubic = 'ZONA-PICKING';
+                }
+            }
+
+            if (modoActual === 'ASIGNAR' && pedido) {
+                const registroPrevio = logs.find(l => l.pedido === pedido && l.tipo === 'ASIGNAR');
+                if (registroPrevio) {
+                    return alert(`⚠️ ERROR: La Guía #${pedido} ya fue asignada al UPC ${registroPrevio.upc}.`);
+                }
+            }
+
+            const disponible = calcularStock(upc, ubic);
+            if (modoActual !== 'ENTRADA' && disponible < cant) {
+                return alert(`STOCK INSUFICIENTE en ${ubic}. Disponible: ${disponible}`);
+            }
+
+            let loteMovimientos = [];
+            const timestamp = new Date().toLocaleString();
+
+            if (modoActual === 'ASIGNAR') {
+                loteMovimientos.push({
+                    timestamp, tipo: 'SALIDA', upc, ubic, cant, pedido, usuario: usuarioActivo
+                });
+                loteMovimientos.push({
+                    timestamp, tipo: 'ENTRADA', upc, ubic: 'ZONA-PICKING', cant, pedido, usuario: usuarioActivo
+                });
+                loteMovimientos.push({
+                    timestamp, tipo: 'ASIGNAR', upc, ubic: 'ZONA-PICKING', cant, pedido, usuario: usuarioActivo
+                });
+            } else {
+                loteMovimientos.push({
+                    timestamp, tipo: modoActual, upc, ubic, cant, pedido: pedido || "", usuario: usuarioActivo
+                });
+            }
+
+            document.getElementById('upc-input').value = "";
+            document.getElementById('pedido-input').value = "";
+            document.getElementById('cant-input').value = "1";
+            document.getElementById('upc-input').focus();
+
+            await guardarLoteEnNube(loteMovimientos);
+        }
+
+        function actualizarUI() {
+            const stockMap = {};
+            const guiasMap = {};
+
+            [...logs].reverse().forEach(l => {
+                const key = `${l.upc}|${l.ubic}`;
+                if (l.tipo === 'ENTRADA') {
+                    stockMap[key] = (stockMap[key] || 0) + l.cant;
+                } else if (l.tipo === 'SALIDA') {
+                    stockMap[key] = (stockMap[key] || 0) - l.cant;
+                }
+
+                if (l.pedido) {
+                    if (guiasMap[l.pedido] && guiasMap[l.pedido].estatus === 'SALIDA') {
+                        return; 
+                    }
+
+                    if (l.tipo === 'SALIDA' && l.ubic === 'ZONA-PICKING') {
+                        guiasMap[l.pedido] = { upc: l.upc, cant: l.cant, estatus: 'SALIDA' };
+                    } else if (l.tipo === 'ASIGNAR') {
+                        guiasMap[l.pedido] = { upc: l.upc, cant: l.cant, estatus: 'ASIGNAR' };
+                    }
+                }
+            });
+
+            document.getElementById('tabla-stock').innerHTML = Object.entries(stockMap)
+                .filter(([_, saldo]) => saldo > 0)
+                .map(([key, saldo]) => {
+                    const [u, b] = key.split('|');
+                    const badgeColor = (b === 'ZONA-PICKING') ? 'bg-amber-500 animate-pulse' : 'bg-green-500';
+                    
+                    return `<tr class="text-xs">
+                        <td class="p-4 font-mono font-bold">${u}</td>
+                        <td class="p-4 font-bold text-blue-500">${b}</td>
+                        <td class="p-4 font-black text-lg">${saldo}</td>
+                        <td class="p-4 text-right"><span class="w-2 h-2 rounded-full inline-block ${badgeColor}"></span></td>
+                    </tr>`;
+                }).join('');
+
+            document.getElementById('tabla-pedidos').innerHTML = Object.entries(guiasMap)
+                .map(([pedido, info]) => {
+                    const badgeEstatus = info.estatus === 'SALIDA' 
+                        ? '<span class="px-2 py-1 bg-slate-500 text-slate-100 font-black text-[10px] rounded-md tracking-wider uppercase">Salida</span>'
+                        : '<span class="px-2 py-1 bg-amber-500 text-slate-900 font-black text-[10px] rounded-md tracking-wider uppercase">Asignada</span>';
+
+                    return `<tr class="border-b border-indigo-800/50 text-xs">
+                        <td class="p-4 font-black text-amber-400">#${pedido}</td>
+                        <td class="p-4 font-mono text-[11px] text-slate-300">${info.upc}</td>
+                        <td class="p-4 text-right font-bold">${info.cant}</td>
+                        <td class="p-4 text-right">${badgeEstatus}</td>
+                    </tr>`;
+                }).join('');
+
+            const skusActivos = Object.values(stockMap).filter(saldo => saldo > 0).length;
+            document.getElementById('badge-total').innerText = `${skusActivos} SKUs`;
+        }
+
+        function exportarCSV() {
+            if (logs.length === 0) return alert("No hay datos para exportar");
+            let csv = "\uFEFFFecha,Tipo,UPC,Ubicacion,Cantidad,GuiaID,Usuario\n";
+            logs.forEach(l => {
+                csv += `"${l.timestamp}","${l.tipo}","${l.upc}","${l.ubic}",${l.cant},"${l.pedido}","${l.usuario || 'N/A'}"\n`;
+            });
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = window.URL.createObjectURL(blob);
+            link.download = `Respaldo_WMS_MEX2_${new Date().toISOString().slice(0,10)}.csv`;
+            link.click();
+        }
+
+        setInterval(() => document.getElementById('reloj').innerText = new Date().toLocaleString(), 1000);
+        document.getElementById('upc-input').addEventListener('keypress', (e) => { if(e.key === 'Enter') ejecutarOperacion(); });
+        document.getElementById('login-pass').addEventListener('keypress', (e) => { if(e.key === 'Enter') autenticar(); });
+        
+        inicializarUbicaciones();
+    </script>
+</body>
+</html>
