@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WMS Executive - Login</title>
+    <title>DS PUE Inventario S2S - Login</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <style>
         /* Animación personalizada para el botón de actualizar */
@@ -28,7 +29,7 @@
         <div class="bg-white p-8 rounded-3xl shadow-2xl max-w-md w-full border border-slate-200">
             <div class="flex flex-col items-center gap-2 mb-6">
                 <span class="material-icons text-blue-500 text-4xl">lock</span>
-                <h2 class="text-2xl font-black text-slate-800 tracking-tight text-center">Acceso DS MEX2</h2>
+                <h2 class="text-2xl font-black text-slate-800 tracking-tight text-center">Acceso DS PUE</h2>
                 <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">WMS Control de Inventarios</p>
             </div>
             
@@ -70,7 +71,7 @@
                         </svg>
                     </div>
                     <h1 class="text-xl font-black tracking-tighter truncate">
-                        DS MEX2 | <span class="text-blue-400">INVENTARIO SAME DAY</span>
+                        DS PUE | <span class="text-blue-400">INVENTARIO S2S</span>
                     </h1>
                 </div>
                 
@@ -97,19 +98,29 @@
                 <div class="bg-white p-6 rounded-2xl shadow-xl border border-slate-200">
                     <h2 class="text-sm font-black text-slate-400 uppercase mb-6 tracking-widest text-center">Movimiento a elegir</h2>
                     
-                    <div class="grid grid-cols-3 gap-2 mb-6">
+                    <div class="grid grid-cols-2 gap-2 mb-6">
                         <button onclick="setModo('ENTRADA')" id="btn-ent" class="modo-btn p-3 rounded-xl border-2 border-green-500 bg-green-50 text-green-700 font-bold flex flex-col items-center gap-1 transition-all">
                             <span class="material-icons text-sm">login</span><span class="text-[10px]">ENTRADA</span>
                         </button>
                         <button onclick="setModo('SALIDA')" id="btn-sal" class="modo-btn p-3 rounded-xl border-2 border-slate-200 text-slate-400 font-bold flex flex-col items-center gap-1 transition-all">
                             <span class="material-icons text-sm">logout</span><span class="text-[10px]">SALIDA</span>
                         </button>
-                        <button onclick="setModo('ASIGNAR')" id="btn-asig" class="modo-btn p-3 rounded-xl border-2 border-slate-200 text-slate-400 font-bold flex flex-col items-center gap-1 transition-all">
-                            <span class="material-icons text-sm">assignment</span><span class="text-[10px]">ASIGNAR</span>
-                        </button>
                     </div>
 
                     <div class="space-y-4">
+                        <div id="banner-guia-seleccionada" class="hidden bg-red-50 border-2 border-red-300 rounded-xl p-3">
+                            <div class="flex justify-between items-start gap-2">
+                                <div>
+                                    <p class="font-black text-red-700 text-[11px]">Surtiendo Guía #<span id="banner-guia-id"></span></p>
+                                    <p class="text-red-500 font-mono text-[10px] mt-0.5">UPC esperado: <span id="banner-guia-upc"></span></p>
+                                    <p class="text-red-500 font-bold text-[10px]">Unidades: <span id="banner-guia-piezas"></span></p>
+                                </div>
+                                <button onclick="cancelarSeleccionGuia()" type="button" class="text-red-400 hover:text-red-700">
+                                    <span class="material-icons text-base">close</span>
+                                </button>
+                            </div>
+                        </div>
+
                         <div id="campo-pedido" class="hidden">
                             <label id="label-guia" class="text-[10px] font-bold uppercase text-indigo-600">GUÍA</label>
                             <input type="text" id="pedido-input" class="w-full p-3 border-2 rounded-xl outline-none font-bold transition-colors" placeholder="Escriba el ID de la Guía">
@@ -121,9 +132,8 @@
                         </div>
 
                         <div>
-                            <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Ubicación Operación</label>
-                            <select id="ubic-input" class="w-full p-4 bg-slate-50 border-2 border-slate-200 rounded-xl outline-none font-bold text-slate-700">
-                            </select>
+                            <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Escaneo de Ubicación</label>
+                            <input type="text" id="ubic-input" class="w-full p-4 bg-slate-50 border-2 border-slate-200 rounded-xl focus:border-blue-500 outline-none text-xl font-mono" placeholder="Esperando escaneo...">
                         </div>
 
                         <div>
@@ -145,7 +155,7 @@
             <div class="lg:col-span-8 space-y-6">
                 <div class="bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200">
                     <div class="p-5 bg-slate-50 border-b flex justify-between items-center">
-                        <h3 class="font-black text-xs text-slate-500 uppercase tracking-widest">Existencias en Rack</h3>
+                        <h3 class="font-black text-xs text-slate-500 uppercase tracking-widest">Existencias en Slots</h3>
                         <span id="badge-total" class="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-[10px] font-bold">0 SKUs</span>
                     </div>
                     <div class="overflow-x-auto max-h-60">
@@ -164,19 +174,27 @@
                 </div>
 
                 <div id="panel-asignaciones" class="bg-indigo-900 rounded-3xl shadow-xl overflow-hidden text-white border-4 border-indigo-200">
-                    <div class="p-5 border-b border-indigo-800">
+                    <div class="p-4 border-b border-indigo-800 flex justify-between items-center gap-2">
                         <h3 class="font-black text-xs uppercase tracking-widest flex items-center gap-2">
-                            <span class="material-icons text-amber-400">local_shipping</span> Estatus Guías
+                            <span class="material-icons text-amber-400 text-base">local_shipping</span> Estatus Guías
                         </h3>
+                        <div class="flex items-center gap-2">
+                            <span id="badge-guias-resumen" class="bg-indigo-800 text-indigo-200 px-2.5 py-1 rounded-full text-[9px] font-bold">0 pendientes / 0 surtidas</span>
+                            <label for="guias-file-input" title="Cargar archivo de guías (.xlsx/.csv)" class="cursor-pointer w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-lg bg-indigo-800 hover:bg-indigo-700 border border-indigo-700 transition-all">
+                                <span class="material-icons text-indigo-300 text-sm">upload_file</span>
+                            </label>
+                            <input type="file" id="guias-file-input" accept=".xlsx,.xls,.csv" class="hidden">
+                        </div>
                     </div>
+                    <p id="info-carga-guias" class="px-4 pt-2 text-[9px] text-indigo-300/60 font-bold"></p>
                     <div class="overflow-x-auto max-h-60">
                         <table class="w-full text-left text-sm">
                             <thead class="text-[10px] font-black text-indigo-300 uppercase border-b border-indigo-800">
                                 <tr>
                                     <th class="p-4">GUÍA ID</th>
-                                    <th class="p-4">UPC ASIGNADO</th>
-                                    <th class="p-4 text-right">UNIDADES</th>
+                                    <th class="p-4">UPC</th>
                                     <th class="p-4 text-right">ESTATUS</th>
+                                    <th class="p-4 text-right">ACCIÓN</th>
                                 </tr>
                             </thead>
                             <tbody id="tabla-pedidos" class="divide-y divide-indigo-800"></tbody>
@@ -200,6 +218,7 @@
         let logs = [];
         let modoActual = 'ENTRADA';
         let usuarioActivo = "";
+        let guiaSeleccionada = null;
 
         function mostrarCarga(texto) {
             document.getElementById('loading-text').innerText = texto;
@@ -215,32 +234,57 @@
             if(syncIcon) syncIcon.classList.remove('anim-spin');
         }
 
+        function fetchConTimeout(bodyObj, timeoutMs = 20000) {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+            return fetch(CLOUD_API_URL, {
+                method: 'POST',
+                mode: 'cors',
+                signal: controller.signal,
+                body: JSON.stringify(bodyObj)
+            }).finally(() => clearTimeout(timeoutId));
+        }
+
         async function cargarDatosDesdeNube() {
             if(CLOUD_API_URL.includes("REMPLAZAR_CON_URL")) return;
             mostrarCarga("Sincronizando Inventario Central...");
-            
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => {
-                controller.abort();
-                alert("⚠️ TIEMPO DE ESPERA AGOTADO: No se pudo conectar con Google Sheets. Verifique sus permisos de acceso.");
-                ocultarCarga();
-            }, 5000);
 
-            try {
-                const response = await fetch(CLOUD_API_URL, {
-                    method: 'POST',
-                    mode: 'cors',
-                    signal: controller.signal,
-                    body: JSON.stringify({ action: "read" })
-                });
-                clearTimeout(timeoutId);
-                logs = await response.json();
-                actualizarUI();
-            } catch (err) {
-                console.error("Error al leer de la nube:", err);
-                clearTimeout(timeoutId);
-            } finally {
-                ocultarCarga();
+            const intentosMax = 2;
+            for (let intento = 1; intento <= intentosMax; intento++) {
+                try {
+                    const response = await fetchConTimeout({ action: "read" }, 20000);
+                    const texto = await response.text();
+
+                    if (!response.ok) {
+                        throw new Error(`El servidor respondió con error HTTP ${response.status}. Respuesta: ${texto.slice(0, 200)}`);
+                    }
+
+                    let datos;
+                    try {
+                        datos = JSON.parse(texto);
+                    } catch (parseErr) {
+                        throw new Error(`La respuesta del script NO es JSON válido (posible error de permisos o del Apps Script). Respuesta recibida: ${texto.slice(0, 200)}`);
+                    }
+
+                    if (!Array.isArray(datos)) {
+                        throw new Error(`La respuesta del script no es una lista de movimientos. Respuesta: ${JSON.stringify(datos).slice(0, 200)}`);
+                    }
+
+                    logs = datos;
+                    console.log(`✅ Sincronización OK: ${logs.length} movimientos cargados desde Google Sheets.`);
+                    actualizarUI();
+                    ocultarCarga();
+                    return;
+                } catch (err) {
+                    console.error(`Error al leer de la nube (intento ${intento}/${intentosMax}):`, err);
+                    if (intento === intentosMax) {
+                        ocultarCarga();
+                        const motivo = err.name === 'AbortError'
+                            ? 'Tiempo de espera agotado (el servidor tardó demasiado en responder).'
+                            : err.message;
+                        alert(`⚠️ No se pudo sincronizar con Google Sheets.\n\nMotivo: ${motivo}\n\nEl inventario mostrado en pantalla podría estar DESACTUALIZADO. Abra la consola del navegador (F12) para ver el detalle técnico completo.`);
+                    }
+                }
             }
         }
 
@@ -252,30 +296,280 @@
             }
             mostrarCarga("Sincronizando movimientos con la nube...");
             try {
-                await fetch(CLOUD_API_URL, {
-                    method: 'POST',
-                    mode: 'cors',
-                    body: JSON.stringify({
-                        action: "write",
-                        movimientos: listaMovimientos
-                    })
-                });
+                const response = await fetchConTimeout({ action: "write", movimientos: listaMovimientos }, 20000);
+                const texto = await response.text();
+                if (!response.ok) {
+                    throw new Error(`El servidor respondió con error HTTP ${response.status} al guardar. Respuesta: ${texto.slice(0, 200)}`);
+                }
+                console.log('✅ Movimiento(s) confirmado(s) por el servidor:', texto.slice(0, 200));
                 await cargarDatosDesdeNube();
             } catch(err) {
-                alert("Error de conexión. Guardado en caché local temporal.");
+                console.error("Error al escribir en la nube:", err);
+                const motivo = err.name === 'AbortError'
+                    ? 'Tiempo de espera agotado (el servidor tardó demasiado en responder).'
+                    : err.message;
+                alert(`⚠️ No se pudo confirmar el guardado en Google Sheets.\n\nMotivo: ${motivo}\n\nEl movimiento se guardó temporalmente en este dispositivo — sincronice en cuanto tenga conexión estable para evitar inconsistencias con otros equipos.`);
                 listaMovimientos.forEach(m => logs.unshift(m));
                 actualizarUI();
+            } finally {
                 ocultarCarga();
             }
         }
 
-        function inicializarUbicaciones() {
-            const select = document.getElementById('ubic-input');
-            let opcionesHTML = '';
-            for (let i = 1; i <= 22; i++) opcionesHTML += `<option value="P5-${i}">P5-${i}</option>`;
-            for (let i = 1; i <= 12; i++) opcionesHTML += `<option value="P6-${i}">P6-${i}</option>`;
-            opcionesHTML += '<option value="ZONA-PICKING">ZONA-PICKING</option>';
-            select.innerHTML = opcionesHTML;
+        const UBICACIONES_VALIDAS = [
+            "AA01110",
+            "AA02110",
+            "AA03110",
+            "AA04110",
+            "AA05110",
+            "AA06110",
+            "AA07110",
+            "AA08110",
+            "AA09110",
+            "AA10110",
+            "AA11110",
+            "AA12110",
+            "AA13110",
+            "AA14110",
+            "AA15110",
+            "AA16110",
+            "AA17110",
+            "AA18110",
+            "AA19110",
+            "AA21110",
+            "AA22110",
+            "AA23110",
+            "AA24110",
+            "AA25110",
+            "AA26110",
+            "AA27110",
+            "AA28110",
+            "AA29110",
+            "AA30110",
+            "AA32110",
+            "AA33110",
+            "AA34110",
+            "AA35110",
+            "AA36110",
+            "AA37110",
+            "AA38110",
+            "AA39110",
+            "AA40110",
+            "AA41110",
+            "AA43110",
+            "AA44110",
+            "AA45110",
+            "AA46110",
+            "AA47110",
+            "AA48110",
+            "AA49110",
+            "AA50110",
+            "BA01110",
+            "BA03110",
+            "BA04110",
+            "BA05110",
+            "BA06110",
+            "BA07110",
+            "BA08110",
+            "BA09110",
+            "BA10110",
+            "CA01110",
+            "CA01120",
+            "CA01320",
+            "CA01520",
+            "CA02120",
+            "CA02130",
+            "CA02210",
+            "CA02420",
+            "CA03110",
+            "CA03120",
+            "CA03310",
+            "CA03320",
+            "CA03530",
+            "CA03610",
+            "CA03620",
+            "CA04110",
+            "CA04130",
+            "CA04210",
+            "CA04220",
+            "CA04230",
+            "CA04310",
+            "CA04620",
+            "CA04630",
+            "CA05110",
+            "CA05220",
+            "CA05230",
+            "CA05320",
+            "CA05520",
+            "CA05610",
+            "CA05630",
+            "CA06110",
+            "CA06130",
+            "CA06410",
+            "CA06510",
+            "CA06610",
+            "CA06630",
+            "CA07120",
+            "CA07220",
+            "CA07530",
+            "CA07610",
+            "CA08130",
+            "CA08510",
+            "CA08610",
+            "CA08630",
+            "CA09110",
+            "CA09120",
+            "CA09220",
+            "CA09510",
+            "CA09520",
+            "CA10130",
+            "CA10230",
+            "CA10510",
+            "CA10530",
+            "CA10630"
+        ];
+
+        // ==================== GUÍAS (carga por archivo horario) ====================
+        const GUIAS_STORAGE_KEY = 'wms_dspue_guias_v2'; // v2: se limpian registros anteriores que no eran guías MXFDD reales
+        let guiasCargadas = {};
+
+        function guardarGuiasLocal() {
+            try {
+                localStorage.setItem(GUIAS_STORAGE_KEY, JSON.stringify(guiasCargadas));
+            } catch (e) {
+                console.error('No se pudo guardar el histórico de guías localmente', e);
+            }
+        }
+
+        function cargarGuiasLocal() {
+            try {
+                const raw = localStorage.getItem(GUIAS_STORAGE_KEY);
+                const datos = raw ? JSON.parse(raw) : {};
+
+                // Blindaje: solo se conservan entradas que realmente son guías MXFDD válidas.
+                // Esto descarta cualquier registro viejo/corrupto de pruebas anteriores.
+                guiasCargadas = {};
+                Object.values(datos).forEach(g => {
+                    if (g && typeof g.guia === 'string' && g.guia.toUpperCase().startsWith('MXFDD')) {
+                        guiasCargadas[g.guia] = g;
+                    }
+                });
+                guardarGuiasLocal();
+            } catch (e) {
+                guiasCargadas = {};
+            }
+        }
+
+        function renderGuias() {
+            const tbody = document.getElementById('tabla-pedidos');
+            if (!tbody) return;
+            const listaGuias = Object.values(guiasCargadas).sort((a, b) => {
+                if (a.estatus === b.estatus) return (b.fechaCarga || '').localeCompare(a.fechaCarga || '');
+                return a.estatus === 'PENDIENTE' ? -1 : 1;
+            });
+
+            tbody.innerHTML = listaGuias.map(g => {
+                const detalle = g.estatus === 'SURTIDO' && g.ubicSurtido
+                    ? `<div class="text-[10px] text-emerald-400 mt-0.5">Surtida en: ${g.ubicSurtido}</div>`
+                    : '';
+
+                const badgeEstatus = g.estatus === 'SURTIDO'
+                    ? '<span class="px-2 py-1 bg-slate-500 text-slate-100 font-black text-[10px] rounded-md tracking-wider uppercase">Surtido</span>'
+                    : '<span class="px-2 py-1 bg-amber-500 text-slate-900 font-black text-[10px] rounded-md tracking-wider uppercase">Pendiente por surtir</span>';
+
+                const accion = g.estatus === 'PENDIENTE'
+                    ? `<button onclick="seleccionarGuiaParaSurtir('${g.guia}')" class="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white font-black text-[9px] rounded-lg uppercase tracking-wide transition-all">Surtir</button>`
+                    : `<span class="material-icons text-emerald-400 text-base" title="Surtida">check_circle</span>`;
+
+                return `<tr class="border-b border-indigo-800/50 text-xs">
+                    <td class="p-4 font-black text-amber-400">#${g.guia}</td>
+                    <td class="p-4 font-mono text-[11px] text-slate-300">${g.upc || '-'}${detalle}</td>
+                    <td class="p-4 text-right">${badgeEstatus}</td>
+                    <td class="p-4 text-right">${accion}</td>
+                </tr>`;
+            }).join('');
+
+            const pendientes = listaGuias.filter(g => g.estatus === 'PENDIENTE').length;
+            const surtidas = listaGuias.filter(g => g.estatus === 'SURTIDO').length;
+            const badgeResumen = document.getElementById('badge-guias-resumen');
+            if (badgeResumen) badgeResumen.innerText = `${pendientes} pendientes / ${surtidas} surtidas`;
+        }
+
+        function procesarGuiasCargadas(filas) {
+            // El identificador de guía viene en la columna "carton_tracking_nbr" (columna Q del archivo horario).
+            // Solo se contemplan guías válidas de DS PUE, que siempre inician con "MXFDD".
+            let nuevas = 0, existentes = 0, invalidas = 0, fueraDeRango = 0;
+
+            filas.forEach(fila => {
+                const guiaId = String(fila.carton_tracking_nbr || fila.CartonTrackingNbr || fila.Guia || fila.guia || '').trim().toUpperCase();
+                const upc = String(fila.ItemUpc || fila.itemupc || fila.UPC || '').trim();
+                const desc = String(fila.item_description || fila.Descripcion || '').trim();
+                const piezas = parseInt(fila.total_piezas) || 1;
+
+                if (!guiaId) { invalidas++; return; }
+
+                if (!guiaId.startsWith('MXFDD')) {
+                    fueraDeRango++;
+                    return;
+                }
+
+                if (guiasCargadas[guiaId]) {
+                    // La guía ya existe (de esta u otra carga anterior): no se duplica ni se pisa su estatus
+                    existentes++;
+                    return;
+                }
+
+                guiasCargadas[guiaId] = {
+                    guia: guiaId,
+                    upc, desc, piezas,
+                    estatus: 'PENDIENTE',
+                    fechaCarga: new Date().toLocaleString(),
+                    fechaSurtido: null,
+                    ubicSurtido: null
+                };
+                nuevas++;
+            });
+
+            guardarGuiasLocal();
+            renderGuias();
+
+            const infoEl = document.getElementById('info-carga-guias');
+            if (infoEl) {
+                infoEl.innerText = `Última carga: ${new Date().toLocaleString()} — ${nuevas} nuevas, ${existentes} ya existentes.`;
+            }
+
+            alert(`✅ Carga completa.\n\nGuías nuevas agregadas: ${nuevas}\nGuías ya existentes (no duplicadas): ${existentes}${fueraDeRango ? `\nFilas ignoradas (no inician con MXFDD): ${fueraDeRango}` : ''}${invalidas ? `\nFilas sin número de guía válido: ${invalidas}` : ''}`);
+        }
+
+        function manejarArchivoGuias(event) {
+            const archivo = event.target.files[0];
+            if (!archivo) return;
+
+            mostrarCarga('Procesando archivo de guías...');
+            const lector = new FileReader();
+
+            lector.onload = function (evt) {
+                try {
+                    const datos = new Uint8Array(evt.target.result);
+                    const libro = XLSX.read(datos, { type: 'array' });
+                    const hoja = libro.Sheets[libro.SheetNames[0]];
+                    const filas = XLSX.utils.sheet_to_json(hoja, { defval: '' });
+                    procesarGuiasCargadas(filas);
+                } catch (err) {
+                    console.error(err);
+                    alert('⚠️ No se pudo leer el archivo. Verifique que sea el formato correcto (.xlsx/.csv).');
+                } finally {
+                    ocultarCarga();
+                    event.target.value = '';
+                }
+            };
+
+            lector.onerror = function () {
+                ocultarCarga();
+                alert('⚠️ Error al leer el archivo.');
+            };
+
+            lector.readAsArrayBuffer(archivo);
         }
 
         function autenticar() {
@@ -317,16 +611,22 @@
                 btnActivoClass: ['border-red-500', 'bg-red-50', 'text-red-700'],
                 btnAccionClass: ['w-full', 'p-5', 'bg-red-600', 'hover:bg-red-700', 'text-white', 'rounded-2xl', 'font-black', 'text-lg', 'shadow-lg', 'transition-all', 'uppercase', 'tracking-tighter'],
                 text: 'Confirmar Salida', showGuia: true, theme: 'red'
-            },
-            'ASIGNAR': {
-                btnId: 'btn-asig',
-                btnActivoClass: ['border-indigo-500', 'bg-indigo-50', 'text-indigo-700'],
-                btnAccionClass: ['w-full', 'p-5', 'bg-indigo-600', 'hover:bg-indigo-700', 'text-white', 'rounded-2xl', 'font-black', 'text-lg', 'shadow-lg', 'transition-all', 'uppercase', 'tracking-tighter'],
-                text: 'Vincular a Guía', showGuia: true, theme: 'indigo'
             }
         };
 
         function setModo(modo) {
+            // Si había una guía seleccionada desde el panel de guías, liberamos los campos
+            guiaSeleccionada = null;
+            document.getElementById('banner-guia-seleccionada').classList.add('hidden');
+            const inputCantPrev = document.getElementById('cant-input');
+            inputCantPrev.readOnly = false;
+            inputCantPrev.classList.remove('opacity-60', 'cursor-not-allowed');
+            inputCantPrev.value = "1";
+            document.getElementById('pedido-input').readOnly = false;
+            document.getElementById('pedido-input').value = "";
+            document.getElementById('upc-input').value = "";
+            document.getElementById('ubic-input').value = "";
+
             modoActual = modo;
             const cfg = configModos[modo];
 
@@ -345,139 +645,189 @@
             const campoPedido = document.getElementById('campo-pedido');
             const labelGuia = document.getElementById('label-guia');
             const inputGuia = document.getElementById('pedido-input');
-            const selectUbic = document.getElementById('ubic-input');
 
             if (cfg.showGuia) {
                 campoPedido.classList.remove('hidden');
-                if (cfg.theme === 'red') {
-                    labelGuia.className = "text-[10px] font-bold uppercase text-red-600";
-                    inputGuia.className = "w-full p-3 bg-red-50 border-2 border-red-200 rounded-xl focus:border-red-500 outline-none font-bold";
-                    selectUbic.value = "ZONA-PICKING";
-                } else {
-                    labelGuia.className = "text-[10px] font-bold uppercase text-indigo-600";
-                    inputGuia.className = "w-full p-3 bg-indigo-50 border-2 border-indigo-200 rounded-xl focus:border-indigo-500 outline-none font-bold";
-                }
+                labelGuia.className = "text-[10px] font-bold uppercase text-red-600";
+                inputGuia.className = "w-full p-3 bg-red-50 border-2 border-red-200 rounded-xl focus:border-red-500 outline-none font-bold";
             } else {
                 campoPedido.classList.add('hidden');
             }
 
             document.getElementById('upc-input').focus();
+
+            // Al entrar a SALIDA, refrescamos el inventario desde la nube para evitar
+            // trabajar con datos desactualizados (causa típica de "stock insuficiente" falso)
+            if (modo === 'SALIDA') {
+                cargarDatosDesdeNube();
+            }
+        }
+
+        function resetCamposMovimiento() {
+            document.getElementById('upc-input').value = "";
+            document.getElementById('ubic-input').value = "";
+            const inputGuia = document.getElementById('pedido-input');
+            inputGuia.value = "";
+            inputGuia.readOnly = false;
+            const inputCant = document.getElementById('cant-input');
+            inputCant.value = "1";
+            inputCant.readOnly = false;
+            inputCant.classList.remove('opacity-60', 'cursor-not-allowed');
+            document.getElementById('banner-guia-seleccionada').classList.add('hidden');
+            guiaSeleccionada = null;
+            document.getElementById('upc-input').focus();
+        }
+
+        function cancelarSeleccionGuia() {
+            resetCamposMovimiento();
+        }
+
+        function seleccionarGuiaParaSurtir(guiaId) {
+            const guia = guiasCargadas[guiaId];
+            if (!guia) return;
+            if (guia.estatus === 'SURTIDO') {
+                return alert(`La guía #${guiaId} ya fue surtida anteriormente.`);
+            }
+
+            setModo('SALIDA');
+            guiaSeleccionada = guiaId;
+
+            const inputGuia = document.getElementById('pedido-input');
+            inputGuia.value = guiaId;
+            inputGuia.readOnly = true;
+
+            const inputCant = document.getElementById('cant-input');
+            inputCant.value = guia.piezas || 1;
+            inputCant.readOnly = true;
+            inputCant.classList.add('opacity-60', 'cursor-not-allowed');
+
+            document.getElementById('banner-guia-id').innerText = guiaId;
+            document.getElementById('banner-guia-upc').innerText = guia.upc || '-';
+            document.getElementById('banner-guia-piezas').innerText = guia.piezas || '-';
+            document.getElementById('banner-guia-seleccionada').classList.remove('hidden');
+
+            const upcInput = document.getElementById('upc-input');
+            upcInput.focus();
+            upcInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
 
         function calcularStock(upc, ubic) {
             return logs
                 .filter(l => l.upc === upc && l.ubic === ubic)
                 .reduce((acc, l) => {
-                    if (l.tipo === 'ENTRADA') return acc + l.cant;
-                    if (l.tipo === 'SALIDA') return acc - l.cant;
+                    const cantidad = Number(l.cant) || 0;
+                    if (l.tipo === 'ENTRADA') return acc + cantidad;
+                    if (l.tipo === 'SALIDA') return acc - cantidad;
                     return acc;
                 }, 0);
         }
 
-        function buscarUbicacionConStock(upc) {
-            const stockMap = {};
+        function buscarStockUpcEnTodasUbicaciones(upc) {
+            const stockPorUbic = {};
             logs.forEach(l => {
-                const key = l.ubic;
-                if (l.upc === upc) {
-                    if (l.tipo === 'ENTRADA') stockMap[key] = (stockMap[key] || 0) + l.cant;
-                    if (l.tipo === 'SALIDA') stockMap[key] = (stockMap[key] || 0) - l.cant;
-                }
+                if (l.upc !== upc) return;
+                const cantidad = Number(l.cant) || 0;
+                if (l.tipo === 'ENTRADA') stockPorUbic[l.ubic] = (stockPorUbic[l.ubic] || 0) + cantidad;
+                if (l.tipo === 'SALIDA') stockPorUbic[l.ubic] = (stockPorUbic[l.ubic] || 0) - cantidad;
             });
-            for (const [ubicacion, saldo] of Object.entries(stockMap)) {
-                if (saldo > 0 && ubicacion !== 'ZONA-PICKING') {
-                    return ubicacion;
-                }
-            }
-            return null;
+            return Object.entries(stockPorUbic).filter(([_, saldo]) => saldo > 0);
         }
 
         async function ejecutarOperacion() {
             const upc = document.getElementById('upc-input').value.trim();
-            let ubic = document.getElementById('ubic-input').value;
+            const ubic = document.getElementById('ubic-input').value.trim().toUpperCase();
             const cant = parseInt(document.getElementById('cant-input').value);
-            const pedido = document.getElementById('pedido-input').value.trim();
+            const pedido = document.getElementById('pedido-input').value.trim().toUpperCase();
 
-            if (!upc || isNaN(cant) || cant <= 0) return;
-            
-            if ((modoActual === 'ASIGNAR' || modoActual === 'SALIDA') && !pedido) {
+            if (!upc) return alert("Por favor, escanee el UPC.");
+            if (!ubic) return alert("Por favor, escanee la ubicación.");
+            if (isNaN(cant) || cant <= 0) return;
+
+            if (modoActual === 'SALIDA' && !pedido) {
                 return alert("Por favor, ingrese el ID de la Guía antes de continuar.");
             }
 
-            if (modoActual === 'ASIGNAR') {
-                const ubicacionDetectada = buscarUbicacionConStock(upc);
-                if (ubicacionDetectada) {
-                    ubic = ubicacionDetectada;
-                }
+            if (!UBICACIONES_VALIDAS.includes(ubic)) {
+                const continuarUbic = confirm(`La ubicación "${ubic}" no está en el catálogo de slots de DS PUE. ¿Escaneó correctamente? Continuar de todas formas?`);
+                if (!continuarUbic) return;
             }
 
-            if (modoActual === 'SALIDA') {
-                const stockInPicking = calcularStock(upc, 'ZONA-PICKING');
-                if (stockInPicking >= cant) {
-                    ubic = 'ZONA-PICKING';
-                }
-            }
+            const guia = pedido ? guiasCargadas[pedido] : null;
 
-            if (modoActual === 'ASIGNAR' && pedido) {
-                const registroPrevio = logs.find(l => l.pedido === pedido && l.tipo === 'ASIGNAR');
-                if (registroPrevio) {
-                    return alert(`⚠️ ERROR: La Guía #${pedido} ya fue asignada al UPC ${registroPrevio.upc}.`);
+            // ---- SALIDA: valida contra la guía para reducir errores de picking ----
+            if (modoActual === 'SALIDA' && guia) {
+                if (guia.estatus === 'SURTIDO') {
+                    return alert(`⚠️ La Guía #${pedido} ya fue SURTIDA anteriormente. No se puede volver a surtir (se evitan movimientos duplicados de inventario).`);
+                }
+                if (guia.upc && upc !== guia.upc) {
+                    return alert(`⚠️ El UPC escaneado (${upc}) no coincide con el UPC esperado para la guía #${pedido} (${guia.upc}). Verifique el producto antes de continuar.`);
+                }
+                if (guia.piezas && cant !== guia.piezas) {
+                    const continuar = confirm(`La cantidad ingresada (${cant}) no coincide con las unidades esperadas para esta guía (${guia.piezas}). ¿Desea continuar de todas formas?`);
+                    if (!continuar) return;
                 }
             }
 
             const disponible = calcularStock(upc, ubic);
             if (modoActual !== 'ENTRADA' && disponible < cant) {
-                return alert(`STOCK INSUFICIENTE en ${ubic}. Disponible: ${disponible}`);
+                const stockOtrasUbic = buscarStockUpcEnTodasUbicaciones(upc);
+                const registrosDeEsteUpc = logs.filter(l => l.upc === upc);
+                console.log('🔍 Diagnóstico de stock insuficiente:', {
+                    upc_escaneado: JSON.stringify(upc),
+                    ubicacion_escaneada: JSON.stringify(ubic),
+                    total_movimientos_cargados: logs.length,
+                    movimientos_de_este_upc: registrosDeEsteUpc,
+                    stock_por_ubicacion_de_este_upc: stockOtrasUbic
+                });
+                let mensaje = `⚠️ STOCK INSUFICIENTE en "${ubic}". Disponible ahí: ${disponible}.`;
+                if (stockOtrasUbic.length > 0) {
+                    const detalle = stockOtrasUbic.map(([u, s]) => `• "${u}": ${s} unidades`).join('\n');
+                    mensaje += `\n\nEste UPC SÍ tiene existencia en otra(s) ubicación(es) según el último sincronizado:\n${detalle}\n\n¿Escaneaste la ubicación correcta? (revisa espacios o mayúsculas distintas entre comillas)`;
+                } else if (registrosDeEsteUpc.length > 0) {
+                    mensaje += `\n\nEste UPC SÍ aparece en el inventario sincronizado (${registrosDeEsteUpc.length} movimiento(s)), pero el saldo neto en todas las ubicaciones es 0 o negativo. Puede que ya se haya dado de baja antes. Revise la consola (F12) para el detalle completo.`;
+                } else {
+                    mensaje += `\n\nNo se encontró NINGÚN movimiento con el UPC "${upc}" en el inventario sincronizado (${logs.length} movimientos totales cargados). Si lo acabas de cargar por ENTRADA, presiona el botón de sincronizar 🔄 y vuelve a intentar. Si el problema persiste, revisa la consola (F12): ahí quedó el detalle completo para diagnóstico.`;
+                }
+                return alert(mensaje);
             }
 
-            let loteMovimientos = [];
             const timestamp = new Date().toLocaleString();
+            const loteMovimientos = [{
+                timestamp, tipo: modoActual, upc, ubic, cant, pedido: pedido || "", usuario: usuarioActivo
+            }];
 
-            if (modoActual === 'ASIGNAR') {
-                loteMovimientos.push({
-                    timestamp, tipo: 'SALIDA', upc, ubic, cant, pedido, usuario: usuarioActivo
-                });
-                loteMovimientos.push({
-                    timestamp, tipo: 'ENTRADA', upc, ubic: 'ZONA-PICKING', cant, pedido, usuario: usuarioActivo
-                });
-                loteMovimientos.push({
-                    timestamp, tipo: 'ASIGNAR', upc, ubic: 'ZONA-PICKING', cant, pedido, usuario: usuarioActivo
-                });
-            } else {
-                loteMovimientos.push({
-                    timestamp, tipo: modoActual, upc, ubic, cant, pedido: pedido || "", usuario: usuarioActivo
-                });
-            }
-
-            document.getElementById('upc-input').value = "";
-            document.getElementById('pedido-input').value = "";
-            document.getElementById('cant-input').value = "1";
-            document.getElementById('upc-input').focus();
+            resetCamposMovimiento();
 
             await guardarLoteEnNube(loteMovimientos);
+
+            if (modoActual === 'SALIDA' && pedido) {
+                if (!guiasCargadas[pedido]) {
+                    guiasCargadas[pedido] = {
+                        guia: pedido, upc, desc: '', piezas: cant,
+                        estatus: 'PENDIENTE',
+                        fechaCarga: null,
+                        fechaSurtido: null,
+                        ubicSurtido: null
+                    };
+                }
+                guiasCargadas[pedido].estatus = 'SURTIDO';
+                guiasCargadas[pedido].fechaSurtido = timestamp;
+                guiasCargadas[pedido].ubicSurtido = ubic;
+                guardarGuiasLocal();
+                renderGuias();
+            }
         }
 
         function actualizarUI() {
             const stockMap = {};
-            const guiasMap = {};
 
             [...logs].reverse().forEach(l => {
                 const key = `${l.upc}|${l.ubic}`;
+                const cantidad = Number(l.cant) || 0;
                 if (l.tipo === 'ENTRADA') {
-                    stockMap[key] = (stockMap[key] || 0) + l.cant;
+                    stockMap[key] = (stockMap[key] || 0) + cantidad;
                 } else if (l.tipo === 'SALIDA') {
-                    stockMap[key] = (stockMap[key] || 0) - l.cant;
-                }
-
-                if (l.pedido) {
-                    if (guiasMap[l.pedido] && guiasMap[l.pedido].estatus === 'SALIDA') {
-                        return; 
-                    }
-
-                    if (l.tipo === 'SALIDA' && l.ubic === 'ZONA-PICKING') {
-                        guiasMap[l.pedido] = { upc: l.upc, cant: l.cant, estatus: 'SALIDA' };
-                    } else if (l.tipo === 'ASIGNAR') {
-                        guiasMap[l.pedido] = { upc: l.upc, cant: l.cant, estatus: 'ASIGNAR' };
-                    }
+                    stockMap[key] = (stockMap[key] || 0) - cantidad;
                 }
             });
 
@@ -485,27 +835,12 @@
                 .filter(([_, saldo]) => saldo > 0)
                 .map(([key, saldo]) => {
                     const [u, b] = key.split('|');
-                    const badgeColor = (b === 'ZONA-PICKING') ? 'bg-amber-500 animate-pulse' : 'bg-green-500';
-                    
+
                     return `<tr class="text-xs">
                         <td class="p-4 font-mono font-bold">${u}</td>
                         <td class="p-4 font-bold text-blue-500">${b}</td>
                         <td class="p-4 font-black text-lg">${saldo}</td>
-                        <td class="p-4 text-right"><span class="w-2 h-2 rounded-full inline-block ${badgeColor}"></span></td>
-                    </tr>`;
-                }).join('');
-
-            document.getElementById('tabla-pedidos').innerHTML = Object.entries(guiasMap)
-                .map(([pedido, info]) => {
-                    const badgeEstatus = info.estatus === 'SALIDA' 
-                        ? '<span class="px-2 py-1 bg-slate-500 text-slate-100 font-black text-[10px] rounded-md tracking-wider uppercase">Salida</span>'
-                        : '<span class="px-2 py-1 bg-amber-500 text-slate-900 font-black text-[10px] rounded-md tracking-wider uppercase">Asignada</span>';
-
-                    return `<tr class="border-b border-indigo-800/50 text-xs">
-                        <td class="p-4 font-black text-amber-400">#${pedido}</td>
-                        <td class="p-4 font-mono text-[11px] text-slate-300">${info.upc}</td>
-                        <td class="p-4 text-right font-bold">${info.cant}</td>
-                        <td class="p-4 text-right">${badgeEstatus}</td>
+                        <td class="p-4 text-right"><span class="w-2 h-2 rounded-full inline-block bg-green-500"></span></td>
                     </tr>`;
                 }).join('');
 
@@ -522,15 +857,22 @@
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
             link.href = window.URL.createObjectURL(blob);
-            link.download = `Respaldo_WMS_MEX2_${new Date().toISOString().slice(0,10)}.csv`;
+            link.download = `Respaldo_WMS_DSPUE_${new Date().toISOString().slice(0,10)}.csv`;
             link.click();
         }
 
         setInterval(() => document.getElementById('reloj').innerText = new Date().toLocaleString(), 1000);
-        document.getElementById('upc-input').addEventListener('keypress', (e) => { if(e.key === 'Enter') ejecutarOperacion(); });
+        document.getElementById('upc-input').addEventListener('keypress', (e) => { if(e.key === 'Enter') { e.preventDefault(); document.getElementById('ubic-input').focus(); } });
+        document.getElementById('ubic-input').addEventListener('keypress', (e) => { if(e.key === 'Enter') { e.preventDefault(); ejecutarOperacion(); } });
         document.getElementById('login-pass').addEventListener('keypress', (e) => { if(e.key === 'Enter') autenticar(); });
-        
-        inicializarUbicaciones();
+        document.getElementById('guias-file-input').addEventListener('change', manejarArchivoGuias);
+
+        cargarGuiasLocal();
+        renderGuias();
+        if (Object.keys(guiasCargadas).length > 0) {
+            const infoEl = document.getElementById('info-carga-guias');
+            if (infoEl) infoEl.innerText = `${Object.keys(guiasCargadas).length} guías en histórico (cargado localmente).`;
+        }
     </script>
 </body>
 </html>
